@@ -71,10 +71,13 @@ def index():
 def imp():
     return render_template('imp.html')
 
-@app.route('/video')
-def video(frameData):
+@app.route('/video', methods=['POST'])
+def video():
     global streaming
     streaming = True
+    frameData = request.json.get('image')
+    if not frameData:
+        return {"error": "No frame data provided"}, 400
     return Response(generate_frames(frameData), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/shutdown')

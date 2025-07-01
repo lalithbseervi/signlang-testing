@@ -284,6 +284,10 @@
         <div class="status-text" id="statusText">
             Ready to start detection
         </div>
+
+        <!-- debugging purposes -->
+        <div id="console">
+        </div>
     </div>
 
     <script>
@@ -294,28 +298,31 @@
         const canvas = document.getElementById('hiddenCanvas');
         const ctx = canvas.getContext('2d')
 
-        function sendFrameData() {
+        async function sendFrameData() {
+            const console = document.getElementById("console");
+
             canvas.width = videoFeed.videoWidth;
             canvas.height = videoFeed.videoHeight;
             ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
 
             const url = canvas.toDataURL('image/jpeg', 0.5);
 
-            fetch('/video', {
+            const response = fetch('/video', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ image: url })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log("Frame sent successfully");
-                } else {
-                    console.error("Error sending frame:", data.error);
-                }
-            })
+            
+            const result = await response.json();
+            if (result.success) {
+                console.log("Frame data sent successfully");
+                console.innerHTML += `<p>Frame data sent successfully: ${result.message}</p>`;
+            } else {
+                console.error("Error sending frame data:", result.error);
+                console.innerHTML += `<p style="color: red;">Error sending frame data: ${result.error}</p>`;
+            }
         }
 
         function start() {
