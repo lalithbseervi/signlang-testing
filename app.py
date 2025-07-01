@@ -72,10 +72,10 @@ def imp():
     return render_template('imp.html')
 
 @app.route('/video')
-def video():
+def video(frameData):
     global streaming
     streaming = True
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate_frames(frameData), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/shutdown')
 def shutdown():
