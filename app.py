@@ -1,3 +1,4 @@
+import base64
 from flask import Flask, render_template, Response, request
 import cv2
 import numpy as np
@@ -19,9 +20,20 @@ offset = 20
 labels = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 def generate_frames(frameData):
-    frame = frameData.split(',')[1]
-    nparr = np.frombuffer(frame.encode('utf-8'), np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if not frameData:
+        return {"success": False, "message": "No frame data provided."}
+
+    if ',' in frameData:
+        image_data = frameData.split(',')[1]
+    else:
+        image_data = frameData
+
+    try:
+        nparr = np.frombuffer(base64.b64decode(image_data), np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    except Exception as e:
+        print(f"Error decoding image: {e}")
+        return {"success": False, "message": "Error decoding image."}
 
     if img is None:
         # Return a blank frame or handle error
@@ -52,9 +64,10 @@ def generate_frames(frameData):
         cv2.putText(img, labels[index], (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
 
     _, buffer = cv2.imencode('.jpg', img)
-    frame = buffer.tobytes()
-    yield (b'--frame\r\n'
-           b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    return buffer.tobytes()
+    # frame = buffer.tobytes()
+    # yield (b'--frame\r\n'
+    #        b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 @app.route('/')
 def index():
@@ -66,12 +79,14 @@ def imp():
 
 @app.route('/video', methods=['POST'])
 def video():
-    global streaming
-    streaming = True
+    # global streaming
+    # streaming = True
     frameData = request.json.get('image')
     if not frameData:
         return {"error": "No frame data provided"}, 400
-    return Response(generate_frames(frameData), mimetype='multipart/x-mixed-replace; boundary=frame')
+    
+    img_bytes = generate_frames(frameData)
+    return Response(img_bytes, mimetype='image/jpeg')
 
 @app.route('/shutdown')
 def shutdown():
