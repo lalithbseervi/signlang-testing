@@ -18,7 +18,7 @@ classifier = Classifier("Model/keras_model.h5", "Model/labels.txt")
 offset = 20
 labels = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-def generate_frames():
+def generate_frames(frameData):
     global cap, streaming
     cap = cv2.VideoCapture(0)
 
