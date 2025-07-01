@@ -1,4 +1,4 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, request
 import cv2
 import numpy as np
 import math
@@ -19,49 +19,42 @@ offset = 20
 labels = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 def generate_frames(frameData):
-    global cap, streaming
-    cap = cv2.VideoCapture(0)
+    frame = frameData.split(',')[1]
+    nparr = np.frombuffer(frame.encode('utf-8'), np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    while streaming:
-        success, img = cap.read()
-        if not success:
-            break
+    if img is None:
+        # Return a blank frame or handle error
+        img = np.ones((300, 300, 3), np.uint8) * 255
 
-        hands, img = detector.findHands(img)
-        if hands:
-            hand = hands[0]
-            x, y, w, h = hand['bbox']
+    hands, img = detector.findHands(img)
+    if hands:
+        hand = hands[0]
+        x, y, w, h = hand['bbox']
 
-            imgWhite = np.ones((300, 300, 3), np.uint8) * 255
-            imgCrop = img[y - offset:y + h + offset, x - offset:x + w + offset]
+        imgWhite = np.ones((300, 300, 3), np.uint8) * 255
+        imgCrop = img[y - offset:y + h + offset, x - offset:x + w + offset]
 
-            if imgCrop.size == 0:
-                continue
+        aspectRatio = h / w
+        if aspectRatio > 1:
+            k = 300 / h
+            wCalc = math.ceil(k * w)
+            imgResize = cv2.resize(imgCrop, (wCalc, 300))
+            wGap = math.ceil((300 - wCalc) / 2)
+            imgWhite[:, wGap:wCalc + wGap] = imgResize
+        else:
+            k = 300 / w
+            hCalc = math.ceil(k * h)
+            imgResize = cv2.resize(imgCrop, (300, hCalc))
+            hGap = math.ceil((300 - hCalc) / 2)
+            imgWhite[hGap:hCalc + hGap, :] = imgResize
+        prediction, index = classifier.getPrediction(imgWhite)
+        cv2.putText(img, labels[index], (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
 
-            aspectRatio = h / w
-            if aspectRatio > 1:
-                k = 300 / h
-                wCalc = math.ceil(k * w)
-                imgResize = cv2.resize(imgCrop, (wCalc, 300))
-                wGap = math.ceil((300 - wCalc) / 2)
-                imgWhite[:, wGap:wCalc + wGap] = imgResize
-            else:
-                k = 300 / w
-                hCalc = math.ceil(k * h)
-                imgResize = cv2.resize(imgCrop, (300, hCalc))
-                hGap = math.ceil((300 - hCalc) / 2)
-                imgWhite[hGap:hCalc + hGap, :] = imgResize
-
-            prediction, index = classifier.getPrediction(imgWhite)
-            cv2.putText(img, labels[index], (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 3)
-
-        _, buffer = cv2.imencode('.jpg', img)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-    if cap is not None:
-        cap.release()
+    _, buffer = cv2.imencode('.jpg', img)
+    frame = buffer.tobytes()
+    yield (b'--frame\r\n'
+           b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 @app.route('/')
 def index():
