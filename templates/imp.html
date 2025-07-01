@@ -274,6 +274,7 @@
         <br>
         <div class="video-container">
             <video id="videoFeed" src="" alt="Video Feed" autoplay muted></video>
+            <canvas id="hiddenCanvas" style="display:none"></canvas>
             <div class="video-overlay" id="videoOverlay">
                 <div>Click "Start" to begin detection</div>
             </div>
@@ -290,6 +291,32 @@
         let stream = null;
 
         const videoFeed = document.getElementById("videoFeed"); // get the element from which we get user's camera feed
+        const canvas = document.getElementById('hiddenCanvas');
+        const ctx = canvas.getContext('2d')
+
+        function sendFrameData() {
+            canvas.width = videoFeed.videoWidth;
+            canvas.height = videoFeed.videoHeight;
+            ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+
+            const url = canvas.toDataURL('image/jpeg', 0.5);
+
+            fetch('/generate-frames', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image: url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log("Frame sent successfully");
+                } else {
+                    console.error("Error sending frame:", data.error);
+                }
+            })
+        }
 
         function start() {
             if (isRunning) return;
@@ -299,7 +326,7 @@
             const statusIndicator = document.getElementById("statusIndicator");
             const videoOverlay = document.getElementById("videoOverlay");
             const statusText = document.getElementById("statusText");
-            
+
             startBtn.innerHTML = 'Starting... <div class="loading"></div>';
             startBtn.disabled = true;
             statusText.textContent = "Initializing camera feed...";
@@ -315,6 +342,11 @@
                         startBtn.innerHTML = "Detection Active";
                         startBtn.disabled = false;
                         statusText.textContent = "Detection is running";
+                        setInterval(() => {
+                            if (isRunning) {
+                                sendFrameData();
+                            }
+                        }, 1000); // Send frame data every second
                     })
                     .catch((error) => {
                         console.error("Error accessing camera:", error);
